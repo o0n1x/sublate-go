@@ -16,7 +16,7 @@ const (
 
 type Response struct {
 	ResType ResponseType
-	Text    string // if sync then translation is in text field
+	Text    []string // if sync then translation is in text field
 
 	// if async then response will be in later fields
 
@@ -27,7 +27,7 @@ type Response struct {
 
 type Request struct {
 	ReqType format.Format
-	Text    string // can be the actual text, filepah, etc.. depending on the format field
+	Text    []string // can be the actual text, filepah, etc.. depending on the format field
 	From    lang.Language
 	To      lang.Language
 }
