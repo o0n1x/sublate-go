@@ -192,7 +192,6 @@ func (c *DeepLClient) GetCharCount(req provider.Request) int {
 		totalChars := 0
 
 		for _, s := range req.Text {
-			// Count the number of characters (runes) in the current string
 			count := utf8.RuneCountInString(s)
 			totalChars += count
 		}
