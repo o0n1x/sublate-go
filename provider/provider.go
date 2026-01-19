@@ -50,6 +50,7 @@ const (
 type Client interface {
 	Translate(context.Context, Request) (Response, error)
 	GetCost(Request) float32
+	GetCharCount(Request) int
 	Name() Provider
 	Version() string
 }
