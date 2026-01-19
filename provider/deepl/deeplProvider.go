@@ -173,8 +173,15 @@ func (c *DeepLClient) Translate(ctx context.Context, req provider.Request) (prov
 }
 
 // will approx get the cost without an api call
-func (c *DeepLClient) GetCost(req provider.Request) int {
-	return -1
+// TODO: calculate the cost of specific types files too like srt
+func (c *DeepLClient) GetCost(req provider.Request) float32 {
+	switch req.ReqType {
+	case format.Text:
+		return (25.0 * float32(len(req.Text))) / 1000000 // https://www.deepl.com/en/pro#developer
+	default:
+		return -1
+	}
+
 }
 
 func (c *DeepLClient) Name() provider.Provider {

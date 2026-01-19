@@ -49,7 +49,7 @@ const (
 
 type Client interface {
 	Translate(context.Context, Request) (Response, error)
-	GetCost(Request) int
+	GetCost(Request) float32
 	Name() Provider
 	Version() string
 }
