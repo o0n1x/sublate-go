@@ -15,6 +15,12 @@ import (
 	provider "github.com/o0n1x/mass-translate-package/provider"
 )
 
+func init() {
+	provider.Register(provider.DeepL, func(apiKey string) provider.Client {
+		return GetDeeplClient(apiKey)
+	})
+}
+
 var SupportedFromLang = map[lang.Language]bool{
 	lang.AutoDetect:      true,
 	lang.Arabic:          true,
@@ -142,17 +148,41 @@ func GetDeeplClient(apiKey string) *DeepLClient {
 }
 
 // will verify the input like from/to lang is valid and use the appropriate helper function to get translation
-func (c *DeepLClient) Translate(ctx context.Context, req provider.Request) (provider.Response, error)
+func (c *DeepLClient) Translate(ctx context.Context, req provider.Request) (provider.Response, error) {
+	//validate lang
+	if !SupportedFromLang[req.From] {
+		return provider.Response{}, fmt.Errorf("Error from DeepLProvider: Invalid Source Language : %v", req.From)
+	}
+	if !SupportedToLang[req.To] {
+		return provider.Response{}, fmt.Errorf("Error from DeepLProvider: Invalid Target Language : %v", req.To)
+	}
+
+	//validate type
+	if !SupportedFormats[req.ReqType] {
+		return provider.Response{}, fmt.Errorf("Error from DeepL Provider: Invalid Request Type : %v", req.ReqType.String())
+	}
+
+	if len(req.Text) == 0 {
+		return provider.Response{}, fmt.Errorf("Error from DeepL Provider: Invalid Request no FilePath in Request.text given")
+	}
+
+	if req.ReqType == format.Text {
+		return c.translateText(ctx, req.Text, req.From, req.To)
+	}
+	return c.translateDoc(ctx, req.Text[0], req.From, req.To)
+}
 
 // will approx get the cost without an api call
-func (c *DeepLClient) GetCost(req provider.Request) int
+func (c *DeepLClient) GetCost(req provider.Request) int {
+	return -1
+}
 
 func (c *DeepLClient) Name() provider.Provider {
 	return provider.DeepL
 }
 
 func (c *DeepLClient) Version() string {
-	return "v2"
+	return APIVersion
 }
 
 func (c *DeepLClient) translateText(ctx context.Context, text []string, from lang.Language, to lang.Language) (provider.Response, error) {
@@ -220,8 +250,14 @@ func (c *DeepLClient) translateText(ctx context.Context, text []string, from lan
 
 }
 
-func (c *DeepLClient) translateDoc(ctx context.Context, docPath string, from lang.Language, to lang.Language) (provider.Response, error)
+func (c *DeepLClient) translateDoc(ctx context.Context, docPath string, from lang.Language, to lang.Language) (provider.Response, error) {
+	panic("not implemented")
+}
 
-func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.Response) (Status, error) // expected for obj to contain docid and dockey in keys
+func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.Response) (Status, error) {
+	panic("not implemented")
+} // expected for obj to contain docid and dockey
 
-func (c *DeepLClient) GetResult(ctx context.Context, obj provider.Response) (Status, error) // expected for obj to contain docid and dockey in keys
+func (c *DeepLClient) GetResult(ctx context.Context, obj provider.Response) (Status, error) {
+	panic("not implemented")
+} // expected for obj to contain docid and dockey
