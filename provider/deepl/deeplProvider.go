@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	format "github.com/o0n1x/mass-translate-package/format"
 	lang "github.com/o0n1x/mass-translate-package/lang"
@@ -177,7 +178,14 @@ func (c *DeepLClient) Translate(ctx context.Context, req provider.Request) (prov
 func (c *DeepLClient) GetCost(req provider.Request) float32 {
 	switch req.ReqType {
 	case format.Text:
-		return (25.0 * float32(len(req.Text))) / 1000000 // https://www.deepl.com/en/pro#developer
+		totalChars := 0
+
+		for _, s := range req.Text {
+			// Count the number of characters (runes) in the current string
+			count := utf8.RuneCountInString(s)
+			totalChars += count
+		}
+		return (25.0 * float32(totalChars)) / 1000000 // https://www.deepl.com/en/pro#developer
 	default:
 		return -1
 	}
