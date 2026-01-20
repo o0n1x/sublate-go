@@ -5,8 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -110,6 +114,11 @@ type Translations struct {
 		DetectedSourceLanguage string `json:"detected_source_language"`
 		Text                   string `json:"text"`
 	} `json:"translations"`
+}
+
+type Documents struct {
+	DocID  string `json:"document_id"`
+	DocKey string `json:"document_key"`
 }
 
 type DeepLClient struct {
@@ -275,13 +284,160 @@ func (c *DeepLClient) translateText(ctx context.Context, text []string, from lan
 }
 
 func (c *DeepLClient) translateDoc(ctx context.Context, docPath string, from lang.Language, to lang.Language) (provider.Response, error) {
-	panic("not implemented")
+	file, err := os.Open(docPath)
+	if err != nil {
+		return provider.Response{}, fmt.Errorf("Invalid filepath: %v", err)
+	}
+	defer file.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("file", filepath.Base(file.Name()))
+	if err != nil {
+		return provider.Response{}, fmt.Errorf("Error writing file: %v", err)
+	}
+	_, err = io.Copy(part, file)
+	if err != nil {
+		return provider.Response{}, fmt.Errorf("Error Copying File: %v", err)
+	}
+
+	if from != lang.AutoDetect {
+		err = writer.WriteField("source_lang", from.String())
+		if err != nil {
+			return provider.Response{}, fmt.Errorf("Error writing source_lang to request body")
+		}
+	}
+
+	err = writer.WriteField("target_lang", to.String())
+	if err != nil {
+		return provider.Response{}, fmt.Errorf("Error writing target_lang to request body")
+	}
+
+	writer.Close()
+
+	url := c.BaseURL.JoinPath("/document")
+	req, err := http.NewRequestWithContext(ctx, "POST", url.String(), body)
+	if err != nil {
+		return provider.Response{}, fmt.Errorf("Error creating request: %v", err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("DeepL-Auth-Key %s", c.APIKey))
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	res, err := c.Client.Do(req)
+	if err != nil {
+		return provider.Response{}, fmt.Errorf("Error sending request to server API: %v", err)
+	}
+	defer res.Body.Close()
+
+	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices
+	if !ok {
+		return provider.Response{}, fmt.Errorf("Document upload Error: HTTP Error %v \n", res.StatusCode)
+	}
+
+	document := new(Documents)
+
+	err = json.NewDecoder(res.Body).Decode(document)
+	if err != nil {
+		return provider.Response{}, err
+	}
+
+	return provider.Response{
+		ResType:     provider.ASync,
+		DocumentID:  document.DocID,
+		DocumentKey: document.DocKey,
+	}, nil
+
 }
 
 func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.Response) (Status, error) {
-	panic("not implemented")
+	if obj.DocumentID == "" {
+		return Status{}, fmt.Errorf("Document ID not set")
+	}
+	if obj.DocumentKey == "" {
+		return Status{}, fmt.Errorf("Document Key not set")
+	}
+
+	data := url.Values{}
+	data.Set("document_key", obj.DocumentKey)
+
+	url := c.BaseURL.JoinPath("document", obj.DocumentID)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url.String(), strings.NewReader(data.Encode()))
+	if err != nil {
+		return Status{}, fmt.Errorf("Error creating request: %v", err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("DeepL-Auth-Key %s", c.APIKey))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	res, err := c.Client.Do(req)
+	if err != nil {
+		return Status{}, fmt.Errorf("Error sending request to server API: %v", err)
+	}
+	defer res.Body.Close()
+
+	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices
+	if !ok {
+		return Status{}, fmt.Errorf("Check status Error: HTTP Error %v \n", res.StatusCode)
+	}
+
+	status := new(Status)
+
+	err = json.NewDecoder(res.Body).Decode(status)
+	if err != nil {
+		return Status{}, err
+	}
+
+	if status.Status == "error" {
+		return *status, fmt.Errorf("Error from Deepl API: %v", status.ErrMessage)
+	}
+
+	return *status, nil
+
 } // expected for obj to contain docid and dockey
 
-func (c *DeepLClient) GetResult(ctx context.Context, obj provider.Response) (Status, error) {
-	panic("not implemented")
+func (c *DeepLClient) GetResult(ctx context.Context, obj provider.Response) ([]byte, error) {
+	if obj.DocumentID == "" {
+		return nil, fmt.Errorf("Document ID not set")
+	}
+	if obj.DocumentKey == "" {
+		return nil, fmt.Errorf("Document Key not set")
+	}
+
+	data := url.Values{}
+	data.Set("document_key", obj.DocumentKey)
+
+	url := c.BaseURL.JoinPath("document", obj.DocumentID, "result")
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url.String(), strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("Error creating request: %v", err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("DeepL-Auth-Key %s", c.APIKey))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	res, err := c.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Error sending request to server API: %v", err)
+	}
+	defer res.Body.Close()
+
+	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices
+	if !ok {
+		if res.StatusCode == 404 {
+			return nil, fmt.Errorf("Deepl API Error: Document Not Found")
+		}
+		if res.StatusCode == 503 {
+			return nil, fmt.Errorf("Deepl API Error: Document Already downloaded")
+		}
+		return nil, fmt.Errorf("Check status Error: HTTP Error %v \n", res.StatusCode)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading Document: %v", err)
+	}
+
+	return body, nil
+
 } // expected for obj to contain docid and dockey
