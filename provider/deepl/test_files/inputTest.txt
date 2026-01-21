@@ -1,0 +1,5 @@
+The art of translation is more than converting words from one language to another. It requires understanding cultural nuances, context, and the subtle meanings behind expressions. A skilled translator must capture not just the literal meaning, but also the tone and intent of the original author.
+
+Machine translation has improved dramatically in recent years. Neural networks can now handle complex sentences and maintain context across paragraphs. However, human translators still excel at creative works, legal documents, and texts requiring deep cultural knowledge.
+
+This is a test file for the DeepL API document translation feature.
