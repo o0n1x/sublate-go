@@ -160,6 +160,9 @@ func GetDeeplClient(apiKey string) *DeepLClient {
 // will verify the input like from/to lang is valid and use the appropriate helper function to get translation
 func (c *DeepLClient) Translate(ctx context.Context, req provider.Request) (provider.Response, error) {
 	//validate lang
+	if req.From == "" {
+		req.From = lang.AutoDetect
+	}
 	if !SupportedFromLang[req.From] {
 		return provider.Response{}, fmt.Errorf("Error from DeepLProvider: Invalid Source Language : %v", req.From)
 	}

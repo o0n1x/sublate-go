@@ -73,12 +73,12 @@ func translateDeepl(ctx context.Context, req provider.Request, client provider.C
 // TODO: make it possible to jst return async results and get status of the async results
 func BatchTranslate(ctx context.Context, req []provider.Request, client provider.Client) ([]provider.Response, []error) {
 	var responses = make([]provider.Response, len(req))
-	var errs []error
+	var errs = make([]error, len(req))
 
 	for i, request := range req {
 		res, err := Translate(ctx, request, client)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("Error Occured at request number %v: %v", i, err))
+			errs[i] = fmt.Errorf("Error Occured at request number %v: %v", i, err)
 			continue
 		}
 		responses[i] = res
