@@ -49,8 +49,8 @@ func TestDeeplIntegrationText(t *testing.T) {
 
 func TestDeeplIntegrationFile(t *testing.T) {
 
-	input_file_name := "test_files/Houseki_no_Kuni_s1e1.srt"
-	output_file_name := "test_files/Houseki_no_Kuni_s1e1_ar.srt"
+	input_file_name := "test_files/inputTest.srt"
+	output_file_name := "test_files/outputTest.srt"
 
 	godotenv.Load("../../.env")
 	apiKey := os.Getenv("DEEPL_API_KEY")
@@ -75,7 +75,7 @@ func TestDeeplIntegrationFile(t *testing.T) {
 		ReqType: format.File,
 		Text:    []string{InputFile.Name()},
 		From:    lang.English,
-		To:      lang.Arabic,
+		To:      lang.Japanese,
 	})
 	if err != nil {
 		t.Fatal(err)

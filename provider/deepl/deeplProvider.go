@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	format "github.com/o0n1x/mass-translate-package/format"
@@ -150,7 +149,7 @@ func GetDeeplClient(apiKey string) *DeepLClient {
 	u, _ := url.Parse(apiHost(apiKey))
 	baseURL := u.JoinPath(APIVersion)
 	return &DeepLClient{
-		Client:  &http.Client{Timeout: 30 * time.Second},
+		Client:  &http.Client{},
 		BaseURL: baseURL,
 		APIKey:  apiKey,
 		IsFree:  isFreeAccount(apiKey),
