@@ -27,10 +27,12 @@ type Response struct {
 }
 
 type Request struct {
-	ReqType format.Format
-	Text    []string // can be the actual text, filepah, etc.. depending on the format field
-	From    lang.Language
-	To      lang.Language
+	ReqType  format.Format
+	Text     []string // can be the actual text, json, etc.. depending on the format field
+	Binary   []byte   // is used when format is File
+	FileName string   // is used when format is File
+	From     lang.Language
+	To       lang.Language
 }
 
 type ClientFactory func(apiKey string) Client

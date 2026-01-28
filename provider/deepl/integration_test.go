@@ -4,6 +4,7 @@ package deepl
 
 import (
 	"context"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -51,6 +52,7 @@ func TestDeeplIntegrationFile(t *testing.T) {
 
 	input_file_name := "test_files/inputTest.srt"
 	output_file_name := "test_files/outputTest.srt"
+	filename := "inputTest.srt"
 
 	godotenv.Load("../../.env")
 	apiKey := os.Getenv("DEEPL_API_KEY")
@@ -71,11 +73,18 @@ func TestDeeplIntegrationFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	data, err := io.ReadAll(InputFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	resp, err := client.Translate(context.Background(), provider.Request{
-		ReqType: format.File,
-		Text:    []string{InputFile.Name()},
-		From:    lang.English,
-		To:      lang.Japanese,
+		ReqType:  format.File,
+		Binary:   data,
+		FileName: filename,
+		From:     lang.English,
+		To:       lang.Arabic,
 	})
 	if err != nil {
 		t.Fatal(err)

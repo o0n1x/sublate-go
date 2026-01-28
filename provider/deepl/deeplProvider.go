@@ -9,8 +9,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
@@ -174,14 +172,14 @@ func (c *DeepLClient) Translate(ctx context.Context, req provider.Request) (prov
 		return provider.Response{}, fmt.Errorf("Error from DeepL Provider: Invalid Request Type : %v", req.ReqType.String())
 	}
 
-	if len(req.Text) == 0 {
-		return provider.Response{}, fmt.Errorf("Error from DeepL Provider: Invalid Request no FilePath in Request.text given")
+	if len(req.Text) == 0 && len(req.FileName) == 0 {
+		return provider.Response{}, fmt.Errorf("Error from DeepL Provider: Invalid Request no text or filename")
 	}
 
 	if req.ReqType == format.Text {
 		return c.translateText(ctx, req.Text, req.From, req.To)
 	}
-	return c.translateDoc(ctx, req.Text[0], req.From, req.To)
+	return c.translateDoc(ctx, req.Binary, req.FileName, req.From, req.To)
 }
 
 // will approx get the cost without an api call
@@ -285,21 +283,16 @@ func (c *DeepLClient) translateText(ctx context.Context, text []string, from lan
 
 }
 
-func (c *DeepLClient) translateDoc(ctx context.Context, docPath string, from lang.Language, to lang.Language) (provider.Response, error) {
-	file, err := os.Open(docPath)
-	if err != nil {
-		return provider.Response{}, fmt.Errorf("Invalid filepath: %v", err)
-	}
-	defer file.Close()
+func (c *DeepLClient) translateDoc(ctx context.Context, binary []byte, filename string, from lang.Language, to lang.Language) (provider.Response, error) {
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	part, err := writer.CreateFormFile("file", filepath.Base(file.Name()))
+	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
 		return provider.Response{}, fmt.Errorf("Error writing file: %v", err)
 	}
-	_, err = io.Copy(part, file)
+	_, err = io.Copy(part, bytes.NewBuffer(binary))
 	if err != nil {
 		return provider.Response{}, fmt.Errorf("Error Copying File: %v", err)
 	}
