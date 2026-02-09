@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	format "github.com/o0n1x/Sublate-go/format"
-	lang "github.com/o0n1x/Sublate-go/lang"
+	format "github.com/o0n1x/sublate-go/format"
+	lang "github.com/o0n1x/sublate-go/lang"
 )
 
 type ResponseType int

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	provider "github.com/o0n1x/Sublate-go/provider"
-	deepl "github.com/o0n1x/Sublate-go/provider/deepl"
+	provider "github.com/o0n1x/sublate-go/provider"
+	deepl "github.com/o0n1x/sublate-go/provider/deepl"
 )
 
 // Translate is the main entry point for all translations.

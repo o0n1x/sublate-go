@@ -1,4 +1,4 @@
-module github.com/o0n1x/Sublate-go
+module github.com/o0n1x/sublate-go
 
 go 1.25.4
 

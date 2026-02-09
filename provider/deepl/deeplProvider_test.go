@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	lang "github.com/o0n1x/Sublate-go/lang"
+	lang "github.com/o0n1x/sublate-go/lang"
 )
 
 func TestTranslateText(t *testing.T) {

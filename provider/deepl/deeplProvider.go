@@ -12,9 +12,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	format "github.com/o0n1x/Sublate-go/format"
-	lang "github.com/o0n1x/Sublate-go/lang"
-	provider "github.com/o0n1x/Sublate-go/provider"
+	format "github.com/o0n1x/sublate-go/format"
+	lang "github.com/o0n1x/sublate-go/lang"
+	provider "github.com/o0n1x/sublate-go/provider"
 )
 
 func init() {
