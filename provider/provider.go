@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	format "github.com/o0n1x/mass-translate-package/format"
-	lang "github.com/o0n1x/mass-translate-package/lang"
+	format "github.com/o0n1x/Sublate-go/format"
+	lang "github.com/o0n1x/Sublate-go/lang"
 )
 
 type ResponseType int

@@ -1,4 +1,4 @@
-# Mass-translate package
+# Sublate-go
 
 A Go Package for translating Text and Documents using multiple translation providers.
 
@@ -13,7 +13,7 @@ A Go Package for translating Text and Documents using multiple translation provi
 ## Installation
 
 ```bash
-go get github.com/o0n1x/mass-translate-package
+go get github.com/o0n1x/sublate-go
 ```
 
 ## Quick Start
@@ -25,10 +25,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/o0n1x/mass-translate-package/format"
-	"github.com/o0n1x/mass-translate-package/lang"
-	"github.com/o0n1x/mass-translate-package/provider"
-	mt "github.com/o0n1x/mass-translate-package/translator"
+	"github.com/o0n1x/sublate-go/format"
+	"github.com/o0n1x/sublate-go/lang"
+	"github.com/o0n1x/sublate-go/provider"
+	sublate "github.com/o0n1x/sublate-go/translator"
 )
 
 func main() {
@@ -49,7 +49,7 @@ func main() {
 	}
 
 	// Translate
-	resp, err := mt.Translate(context.Background(), req, client)
+	resp, err := sublate.Translate(context.Background(), req, client)
 	if err != nil {
 		panic(err)
 	}
@@ -122,7 +122,7 @@ type Client interface {
 
 
 ## Related Projects
-[Mass-translate Server](https://github.com/o0n1x/mass-translate-server) : REST API server using this package
+[Sublate](https://github.com/o0n1x/Sublate) : REST API server using this package
 
 
 ## Acknowledgments

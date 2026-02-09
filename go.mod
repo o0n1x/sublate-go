@@ -1,4 +1,4 @@
-module github.com/o0n1x/mass-translate-package
+module github.com/o0n1x/Sublate-go
 
 go 1.25.4
 

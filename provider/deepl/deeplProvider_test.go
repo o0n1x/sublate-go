@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	lang "github.com/o0n1x/mass-translate-package/lang"
+	lang "github.com/o0n1x/Sublate-go/lang"
 )
 
 func TestTranslateText(t *testing.T) {

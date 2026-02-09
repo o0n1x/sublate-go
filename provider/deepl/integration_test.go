@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	format "github.com/o0n1x/mass-translate-package/format"
-	lang "github.com/o0n1x/mass-translate-package/lang"
-	provider "github.com/o0n1x/mass-translate-package/provider"
+	format "github.com/o0n1x/Sublate-go/format"
+	lang "github.com/o0n1x/Sublate-go/lang"
+	provider "github.com/o0n1x/Sublate-go/provider"
 )
 
 func TestDeeplIntegrationText(t *testing.T) {
