@@ -9,6 +9,9 @@ import (
 	deepl "github.com/o0n1x/mass-translate-package/provider/deepl"
 )
 
+// Translate is the main entry point for all translations.
+// Handles async providers (DeepL files) internally - always returns sync response.
+// Use this, not client.Translate() directly.
 func Translate(ctx context.Context, req provider.Request, client provider.Client) (provider.Response, error) {
 	switch client.Name() {
 	case provider.DeepL:
