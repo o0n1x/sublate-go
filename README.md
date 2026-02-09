@@ -90,6 +90,21 @@ __Get a translation client by provider__
 func GetClient(provider Provider, APIKey string) (Client, error)
 ```
 
+### Client Interface
+
+Implement this to add a new provider:
+
+```go
+type Client interface {
+	Translate(context.Context, Request) (Response, error) // Translates the Request and returns the response
+	GetCost(Request) float32 //calculates cost from request
+	GetCharCount(Request) int // counts the total char count from request
+	Name() Provider //returns the name of the provider. usually returns proivder const from provider package
+	Version() string //returns version of the provider API that is used
+}
+```
+
+
 ### Supported Providers
 
 |Provider | Status | Documents |
@@ -102,6 +117,6 @@ func GetClient(provider Provider, APIKey string) (Client, error)
 | Type | Format | example |
 |-|-|-|
 | Language | ISO 639-1 | EN , DE , JA
-| Language (Regional) | ISO 639-1 + ISO 3166-1 | EN_US , PT-BR
+| Language (Regional) | ISO 639-1 + ISO 3166-1 | EN-US , PT-BR
 | Format | MIME Types / RFC 6838 | text/plain , multipart/form-data
 
