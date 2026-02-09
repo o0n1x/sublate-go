@@ -7,7 +7,7 @@ A Go Package for translating Text and Documents using multiple translation provi
 - Multi-Provider Support: Extensible interface for translation providers
     - Implementing a new Provider simply needs to implement the Client interface
 - Type-Safe: Strongly Typed languages and formats
-- Document Support: Support Translating PDF,SRT,TXT Documents. (Extendendable)
+- Document Support: Support Translating PDF,SRT,TXT Documents. (Extendable)
 
 
 ## Installation
