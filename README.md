@@ -120,3 +120,11 @@ type Client interface {
 | Language (Regional) | ISO 639-1 + ISO 3166-1 | EN-US , PT-BR
 | Format | MIME Types / RFC 6838 | text/plain , multipart/form-data
 
+
+## Related Projects
+[Mass-translate Server](https://github.com/o0n1x/mass-translate-server) : REST API server using this package
+
+
+## Acknowledgments
+
+- [cluttrdev/deepl-go](https://github.com/cluttrdev/deepl-go) - DeepL Go client library, referenced for DeepL API implementation
