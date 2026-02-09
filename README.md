@@ -83,11 +83,11 @@ func Translate(ctx context.Context, req Request, client Client) (Response, error
 
 __Translate multiple requests__
 ```go
-func BatchTranslate(ctx context.Context, reqs []Request, from, to Language, client Client) ([]Response, error)
+func BatchTranslate(ctx context.Context, reqs []Request, client Client) ([]Response, error)
 ```
 __Get a translation client by provider__
 ```go
-func GetClient(provider Provider) (Client, error)
+func GetClient(provider Provider, APIKey string) (Client, error)
 ```
 
 ### Supported Providers
