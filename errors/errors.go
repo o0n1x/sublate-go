@@ -1,22 +1,58 @@
-package errors
+package sublaterr
 
 import (
-	"errors"
 	"fmt"
+	"log/slog"
 )
 
-var (
-	ErrInvalidProvider  = errors.New("Invalid Provider")
-	ErrInvalidLanguage  = errors.New("Invalid Language")
-	ErrInvalidFormat    = errors.New("Invalid Format")
-	ErrInvalidRequest   = errors.New("Invalid Request")
-	ErrHTTP             = errors.New("HTTP error")
-	ErrEmptyResponse    = errors.New("Empty Response")
-	ErrDocumentNotFound = errors.New("Document not found")
-	ErrProviderAPI      = errors.New("API error")
-	ErrNetwork          = errors.New("Network error")
+type ErrorCode int
+
+const (
+	ErrInvalidProvider ErrorCode = iota
+	ErrInvalidLanguage
+	ErrInvalidFormat
+	ErrInvalidRequest
+	ErrInvalidResponse
+	ErrEmptyResponse
+	ErrProviderAPI
+	ErrHTTP
+	ErrNetwork
+	ErrIO
+	ErrSystem
 )
 
-func NewErr(code error, msg string) error {
-	return fmt.Errorf("%w: %s", code, msg)
+type TranslateError struct {
+	Code     ErrorCode
+	Op       string // from where this error comes from
+	Provider string
+	Err      error // source error if there is
+}
+
+func (e *TranslateError) Error() string {
+	if e.Err == nil {
+		return fmt.Sprintf("[%s] %s", e.Provider, e.Op)
+	}
+	return fmt.Sprintf("[%s] %s: %v", e.Provider, e.Op, e.Err)
+}
+
+func (e *TranslateError) Unwrap() error {
+	return e.Err
+}
+
+func (e *TranslateError) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Int("code", int(e.Code)),
+		slog.String("op", e.Op),
+		slog.String("provider", e.Provider),
+		slog.Any("cause", e.Err),
+	)
+}
+
+func New(code ErrorCode, op, provider string, err error) *TranslateError {
+	return &TranslateError{
+		Code:     code,
+		Op:       op,
+		Provider: provider,
+		Err:      err,
+	}
 }
