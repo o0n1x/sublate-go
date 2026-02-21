@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	serr "github.com/o0n1x/sublate-go/errors"
 	format "github.com/o0n1x/sublate-go/format"
 	lang "github.com/o0n1x/sublate-go/lang"
 )
@@ -60,7 +61,7 @@ type Client interface {
 func GetClient(name Provider, apiKey string) (Client, error) {
 	factory, ok := registry[name]
 	if !ok {
-		return nil, fmt.Errorf("invalid provider")
+		return nil, serr.New(serr.ErrInvalidProvider, "GetClient", "", fmt.Errorf("%s is not a valid provider", name))
 	}
 	return factory(apiKey), nil
 }
