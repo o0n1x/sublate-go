@@ -26,6 +26,12 @@ type Response struct {
 	DocumentKey string
 }
 
+type AsyncResponse struct {
+	//DeepL Document translation Fields
+	DocumentID  string
+	DocumentKey string
+}
+
 type Request struct {
 	ReqType  format.Format
 	Text     []string // can be the actual text, json, etc.. depending on the format field
@@ -55,6 +61,12 @@ type Client interface {
 	GetCharCount(Request) int
 	Name() Provider
 	Version() string
+}
+
+type AsyncClient interface {
+	AsyncTranslate(context.Context, Request) (AsyncResponse, error)
+	CheckStatus(context.Context, AsyncResponse) (any, error)
+	GetResult(context.Context, AsyncResponse) (Response, error)
 }
 
 func GetClient(name Provider, apiKey string) (Client, error) {
