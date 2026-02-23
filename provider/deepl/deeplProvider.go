@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	serr "github.com/o0n1x/sublate-go/errors"
 	format "github.com/o0n1x/sublate-go/format"
 	lang "github.com/o0n1x/sublate-go/lang"
 	provider "github.com/o0n1x/sublate-go/provider"
@@ -161,19 +163,19 @@ func (c *DeepLClient) Translate(ctx context.Context, req provider.Request) (prov
 		req.From = lang.AutoDetect
 	}
 	if !SupportedFromLang[req.From] {
-		return provider.Response{}, fmt.Errorf("Error from DeepLProvider: Invalid Source Language : %v", req.From)
+		return provider.Response{}, serr.New(serr.ErrInvalidLanguage, "Translate", string(provider.DeepL), fmt.Errorf("Invalid Source Language %v", req.From))
 	}
 	if !SupportedToLang[req.To] {
-		return provider.Response{}, fmt.Errorf("Error from DeepLProvider: Invalid Target Language : %v", req.To)
+		return provider.Response{}, serr.New(serr.ErrInvalidLanguage, "Translate", string(provider.DeepL), fmt.Errorf("Invalid Target Language %v", req.To))
 	}
 
 	//validate type
 	if !SupportedFormats[req.ReqType] {
-		return provider.Response{}, fmt.Errorf("Error from DeepL Provider: Invalid Request Type : %v", req.ReqType.String())
+		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", string(provider.DeepL), fmt.Errorf("Invalid Request Type %v", req.ReqType.String()))
 	}
 
 	if len(req.Text) == 0 && len(req.FileName) == 0 {
-		return provider.Response{}, fmt.Errorf("Error from DeepL Provider: Invalid Request no text or filename")
+		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", string(provider.DeepL), fmt.Errorf("no text or filename"))
 	}
 
 	if req.ReqType == format.Text {
@@ -235,14 +237,14 @@ func (c *DeepLClient) translateText(ctx context.Context, text []string, from lan
 
 	reqBody, err := json.Marshal(params)
 	if err != nil {
-		return provider.Response{}, err
+		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "TranslateText", string(provider.DeepL), fmt.Errorf("Error json marshal: %w", err))
 	}
 
 	url := c.BaseURL.JoinPath("/translate")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), bytes.NewReader(reqBody))
 	if err != nil {
-		return provider.Response{}, err
+		return provider.Response{}, serr.New(serr.ErrHTTP, "TranslateText", string(provider.DeepL), err)
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("DeepL-Auth-Key %s", c.APIKey))
@@ -250,24 +252,24 @@ func (c *DeepLClient) translateText(ctx context.Context, text []string, from lan
 
 	res, err := c.Client.Do(req)
 	if err != nil {
-		return provider.Response{}, err
+		return provider.Response{}, serr.New(serr.ErrNetwork, "TranslateText", string(provider.DeepL), err)
 	}
 	defer res.Body.Close()
 
-	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices
+	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices // deepl /translate endpoint returns 200 or 400+ codes no in between
 	if !ok {
-		return provider.Response{}, fmt.Errorf("Text Translation Error: HTTP Error %v \n", res.StatusCode)
+		return provider.Response{}, serr.New(serr.ErrHTTP, "TranslateText", string(provider.DeepL), fmt.Errorf("response code %v , Trace ID: %v", res.StatusCode, res.Header.Get("X-Trace-ID")))
 	}
 
 	translations := new(Translations)
 
 	err = json.NewDecoder(res.Body).Decode(translations)
 	if err != nil {
-		return provider.Response{}, err
+		return provider.Response{}, serr.New(serr.ErrInvalidResponse, "TranslateText", string(provider.DeepL), fmt.Errorf("Error json decoding: %w", err))
 	}
 
 	if len(translations.Translations) < 1 {
-		return provider.Response{}, fmt.Errorf("Text Translation Error: Empty translation array response")
+		return provider.Response{}, serr.New(serr.ErrEmptyResponse, "TranslateText", string(provider.DeepL), fmt.Errorf("Empty translation array response"))
 	}
 
 	var textlist []string
@@ -290,23 +292,23 @@ func (c *DeepLClient) translateDoc(ctx context.Context, binary []byte, filename 
 
 	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
-		return provider.Response{}, fmt.Errorf("Error writing file: %v", err)
+		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error writing file: %w", err))
 	}
 	_, err = io.Copy(part, bytes.NewBuffer(binary))
 	if err != nil {
-		return provider.Response{}, fmt.Errorf("Error Copying File: %v", err)
+		return provider.Response{}, serr.New(serr.ErrIO, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error copying file: %w", err))
 	}
 
 	if from != lang.AutoDetect {
 		err = writer.WriteField("source_lang", from.String())
 		if err != nil {
-			return provider.Response{}, fmt.Errorf("Error writing source_lang to request body")
+			return provider.Response{}, serr.New(serr.ErrIO, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error writing source_lang to request body: %w", err))
 		}
 	}
 
 	err = writer.WriteField("target_lang", to.String())
 	if err != nil {
-		return provider.Response{}, fmt.Errorf("Error writing target_lang to request body")
+		return provider.Response{}, serr.New(serr.ErrHTTP, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error writing target_lang to request body: %w", err))
 	}
 
 	writer.Close()
@@ -314,27 +316,27 @@ func (c *DeepLClient) translateDoc(ctx context.Context, binary []byte, filename 
 	url := c.BaseURL.JoinPath("/document")
 	req, err := http.NewRequestWithContext(ctx, "POST", url.String(), body)
 	if err != nil {
-		return provider.Response{}, fmt.Errorf("Error creating request: %v", err)
+		return provider.Response{}, serr.New(serr.ErrHTTP, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error creating request: %w", err))
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("DeepL-Auth-Key %s", c.APIKey))
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	res, err := c.Client.Do(req)
 	if err != nil {
-		return provider.Response{}, fmt.Errorf("Error sending request to server API: %v", err)
+		return provider.Response{}, serr.New(serr.ErrNetwork, "TranslateDocument", string(provider.DeepL), err)
 	}
 	defer res.Body.Close()
 
 	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices
 	if !ok {
-		return provider.Response{}, fmt.Errorf("Document upload Error: HTTP Error %v \n", res.StatusCode)
+		return provider.Response{}, serr.New(serr.ErrHTTP, "TranslateDocument", string(provider.DeepL), fmt.Errorf("response code %v , Trace ID: %v", res.StatusCode, res.Header.Get("X-Trace-ID")))
 	}
 
 	document := new(Documents)
 
 	err = json.NewDecoder(res.Body).Decode(document)
 	if err != nil {
-		return provider.Response{}, err
+		return provider.Response{}, serr.New(serr.ErrInvalidResponse, "TranslateText", string(provider.DeepL), fmt.Errorf("Error json decoding: %w", err))
 	}
 
 	return provider.Response{
@@ -347,10 +349,10 @@ func (c *DeepLClient) translateDoc(ctx context.Context, binary []byte, filename 
 
 func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.Response) (Status, error) {
 	if obj.DocumentID == "" {
-		return Status{}, fmt.Errorf("Document ID not set")
+		return Status{}, serr.New(serr.ErrInvalidRequest, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Document ID not set"))
 	}
 	if obj.DocumentKey == "" {
-		return Status{}, fmt.Errorf("Document Key not set")
+		return Status{}, serr.New(serr.ErrInvalidRequest, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Document Key not set"))
 	}
 
 	data := url.Values{}
@@ -360,43 +362,44 @@ func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.Response) (S
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url.String(), strings.NewReader(data.Encode()))
 	if err != nil {
-		return Status{}, fmt.Errorf("Error creating request: %v", err)
+		return Status{}, serr.New(serr.ErrInvalidRequest, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Error creating http request: %w", err))
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("DeepL-Auth-Key %s", c.APIKey))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	res, err := c.Client.Do(req)
 	if err != nil {
-		return Status{}, fmt.Errorf("Error sending request to server API: %v", err)
+		return Status{}, serr.New(serr.ErrNetwork, "CheckDocumentStatus", string(provider.DeepL), err)
 	}
 	defer res.Body.Close()
 
 	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices
 	if !ok {
-		return Status{}, fmt.Errorf("Check status Error: HTTP Error %v \n", res.StatusCode)
+		return Status{}, serr.New(serr.ErrHTTP, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("response code %v , Trace ID: %v", res.StatusCode, res.Header.Get("X-Trace-ID")))
 	}
 
 	status := new(Status)
 
 	err = json.NewDecoder(res.Body).Decode(status)
 	if err != nil {
-		return Status{}, err
+		return Status{}, serr.New(serr.ErrInvalidResponse, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Error json decoding: %w", err))
 	}
 
 	if status.Status == "error" {
-		return *status, fmt.Errorf("Error from Deepl API: %v", status.ErrMessage)
+		return *status, serr.New(serr.ErrProviderAPI, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("%s", status.ErrMessage))
 	}
 
 	return *status, nil
 
 } // expected for obj to contain docid and dockey
 
+// TODO: manage 404 and 503 responses better
 func (c *DeepLClient) GetResult(ctx context.Context, obj provider.Response) ([]byte, error) {
 	if obj.DocumentID == "" {
-		return nil, fmt.Errorf("Document ID not set")
+		return nil, serr.New(serr.ErrInvalidRequest, "GetResult", string(provider.DeepL), fmt.Errorf("Document ID not set"))
 	}
 	if obj.DocumentKey == "" {
-		return nil, fmt.Errorf("Document Key not set")
+		return nil, serr.New(serr.ErrInvalidRequest, "GetResult", string(provider.DeepL), fmt.Errorf("Document Key not set"))
 	}
 
 	data := url.Values{}
@@ -406,31 +409,31 @@ func (c *DeepLClient) GetResult(ctx context.Context, obj provider.Response) ([]b
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url.String(), strings.NewReader(data.Encode()))
 	if err != nil {
-		return nil, fmt.Errorf("Error creating request: %v", err)
+		return nil, serr.New(serr.ErrInvalidRequest, "GetResult", string(provider.DeepL), fmt.Errorf("Error creating http request: %w", err))
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("DeepL-Auth-Key %s", c.APIKey))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	res, err := c.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Error sending request to server API: %v", err)
+		return nil, serr.New(serr.ErrNetwork, "GetResult", string(provider.DeepL), err)
 	}
 	defer res.Body.Close()
 
 	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices
 	if !ok {
 		if res.StatusCode == 404 {
-			return nil, fmt.Errorf("Deepl API Error: Document Not Found")
+			return nil, serr.New(serr.ErrProviderAPI, "GetResult", string(provider.DeepL), errors.New("Document Not Found"))
 		}
 		if res.StatusCode == 503 {
-			return nil, fmt.Errorf("Deepl API Error: Document Already downloaded")
+			return nil, serr.New(serr.ErrProviderAPI, "GetResult", string(provider.DeepL), errors.New("Document Already downloaded"))
 		}
-		return nil, fmt.Errorf("Check status Error: HTTP Error %v \n", res.StatusCode)
+		return nil, serr.New(serr.ErrHTTP, "GetResult", string(provider.DeepL), fmt.Errorf("response code %v , Trace ID: %v", res.StatusCode, res.Header.Get("X-Trace-ID")))
 	}
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Error reading Document: %v", err)
+		return nil, serr.New(serr.ErrIO, "GetResult", string(provider.DeepL), fmt.Errorf("Error reading Document: %w", err))
 	}
 
 	return body, nil

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	serr "github.com/o0n1x/sublate-go/errors"
 	provider "github.com/o0n1x/sublate-go/provider"
 	deepl "github.com/o0n1x/sublate-go/provider/deepl"
 )
@@ -17,7 +18,7 @@ func Translate(ctx context.Context, req provider.Request, client provider.Client
 	case provider.DeepL:
 		return translateDeepl(ctx, req, client)
 	default:
-		return provider.Response{}, fmt.Errorf("Invalid Client type")
+		return provider.Response{}, serr.New(serr.ErrInvalidProvider, "Translate", "", fmt.Errorf("Invalid Client type"))
 	}
 }
 
@@ -25,7 +26,7 @@ func translateDeepl(ctx context.Context, req provider.Request, client provider.C
 	deeplC := client.(*deepl.DeepLClient)
 	res, err := deeplC.Translate(ctx, req)
 	if err != nil {
-		return provider.Response{}, fmt.Errorf("Error translating using DeepL provider: %v", err)
+		return provider.Response{}, err // all errors returned from deepl is wrapped as serr
 	}
 	switch res.ResType { //this approach is abit too coupled and not generalized ,though, its fine for now TODO: find a better approach
 	case provider.Sync:
@@ -36,28 +37,28 @@ func translateDeepl(ctx context.Context, req provider.Request, client provider.C
 		//async wait for completion
 		status, err := deeplC.CheckStatus(ctx, res)
 		if err != nil {
-			return provider.Response{}, fmt.Errorf("Error translating using DeepL provider: %v", err)
+			return provider.Response{}, err
 		}
 		for status.Status != "done" {
 			if status.Status == "error" {
-				return provider.Response{}, fmt.Errorf("Translation failed: %v", status.ErrMessage)
+				continue // impossible to reach this code since deepl.CheckStatus returns an error if status is error
 			}
 
 			//keeps an eye for ctx cancellation, if it closes mid translation it returns
 			select {
 			case <-ctx.Done():
-				return provider.Response{}, ctx.Err()
+				return provider.Response{}, serr.New(serr.ErrNetwork, "Translate", string(provider.DeepL), ctx.Err())
 			case <-time.After(time.Second):
 			}
 
 			status, err = deeplC.CheckStatus(ctx, res)
 			if err != nil {
-				return provider.Response{}, fmt.Errorf("Error translating using DeepL provider: %v", err)
+				return provider.Response{}, err
 			}
 		}
 		translation, err := deeplC.GetResult(ctx, res)
 		if err != nil {
-			return provider.Response{}, fmt.Errorf("Error translating using DeepL provider: %v", err)
+			return provider.Response{}, err
 		}
 
 		return provider.Response{
@@ -65,8 +66,8 @@ func translateDeepl(ctx context.Context, req provider.Request, client provider.C
 			Binary:  translation,
 		}, nil
 
-	default:
-		return provider.Response{}, fmt.Errorf("Error translating using DeepL provider: Invalid request type")
+	default: // not possible to reach
+		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", string(provider.DeepL), fmt.Errorf("Invalid Deepl Document request type: %v", res.ResType))
 	}
 
 }
@@ -81,7 +82,7 @@ func BatchTranslate(ctx context.Context, req []provider.Request, client provider
 	for i, request := range req {
 		res, err := Translate(ctx, request, client)
 		if err != nil {
-			errs[i] = fmt.Errorf("Error Occured at request number %v: %v", i, err)
+			errs[i] = err
 			continue
 		}
 		responses[i] = res
