@@ -9,23 +9,23 @@ import (
 	lang "github.com/o0n1x/sublate-go/lang"
 )
 
-type ResponseType int
+// type ResponseType int
 
-// with async response this should be safely removed
-const (
-	Sync ResponseType = iota
-	ASync
-)
+// // with async response this should be safely removed
+// const (
+// 	Sync ResponseType = iota
+// 	ASync
+// )
 
 type Response struct {
-	ResType ResponseType
-	Text    []string // if sync then translation is in text field
-	Binary  []byte   // if file then translation in the binary field
-	// if async then response will be in later fields
+	// ResType ResponseType
+	Text []string // if sync then translation is in text field
+	// Binary  []byte   // if file then translation in the binary field
+	// // if async then response will be in later fields
 
-	//DeepL Document translation Fields
-	DocumentID  string
-	DocumentKey string
+	// //DeepL Document translation Fields
+	// DocumentID  string
+	// DocumentKey string
 }
 
 type AsyncResponse struct {

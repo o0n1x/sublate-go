@@ -159,29 +159,54 @@ func GetDeeplClient(apiKey string) *DeepLClient {
 // will verify the input like from/to lang is valid and use the appropriate helper function to get translation
 func (c *DeepLClient) Translate(ctx context.Context, req provider.Request) (provider.Response, error) {
 	//validate lang
-	if req.From == "" {
-		req.From = lang.AutoDetect
-	}
-	if !SupportedFromLang[req.From] {
-		return provider.Response{}, serr.New(serr.ErrInvalidLanguage, "Translate", string(provider.DeepL), fmt.Errorf("Invalid Source Language %v", req.From))
-	}
-	if !SupportedToLang[req.To] {
-		return provider.Response{}, serr.New(serr.ErrInvalidLanguage, "Translate", string(provider.DeepL), fmt.Errorf("Invalid Target Language %v", req.To))
-	}
-
-	//validate type
-	if !SupportedFormats[req.ReqType] {
-		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", string(provider.DeepL), fmt.Errorf("Invalid Request Type %v", req.ReqType.String()))
-	}
-
-	if len(req.Text) == 0 && len(req.FileName) == 0 {
-		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", string(provider.DeepL), fmt.Errorf("no text or filename"))
+	req, err := validateRequest(req)
+	if err != nil {
+		return provider.Response{}, err
 	}
 
 	if req.ReqType == format.Text {
 		return c.translateText(ctx, req.Text, req.From, req.To)
+	} else {
+		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", string(provider.DeepL), fmt.Errorf("Invalid Request Type %v", req.ReqType.String()))
 	}
-	return c.translateDoc(ctx, req.Binary, req.FileName, req.From, req.To)
+
+}
+
+func (c *DeepLClient) AsyncTranslate(ctx context.Context, req provider.Request) (provider.AsyncResponse, error) {
+	req, err := validateRequest(req)
+	if err != nil {
+		return provider.AsyncResponse{}, err
+	}
+
+	if req.ReqType == format.File {
+		return c.translateDoc(ctx, req.Binary, req.FileName, req.From, req.To)
+	} else {
+		return provider.AsyncResponse{}, serr.New(serr.ErrInvalidRequest, "AsyncTranslate", string(provider.DeepL), fmt.Errorf("Invalid Request Type %v", req.ReqType.String()))
+	}
+
+}
+
+func validateRequest(req provider.Request) (provider.Request, *serr.TranslateError) {
+	if req.From == "" {
+		req.From = lang.AutoDetect
+	}
+	if !SupportedFromLang[req.From] {
+		return req, serr.New(serr.ErrInvalidLanguage, "validateRequest", string(provider.DeepL), fmt.Errorf("Invalid Source Language %v", req.From))
+	}
+	if !SupportedToLang[req.To] {
+		return req, serr.New(serr.ErrInvalidLanguage, "validateRequest", string(provider.DeepL), fmt.Errorf("Invalid Target Language %v", req.To))
+	}
+
+	//validate type
+	if !SupportedFormats[req.ReqType] {
+		return req, serr.New(serr.ErrInvalidRequest, "validateRequeste", string(provider.DeepL), fmt.Errorf("Invalid Request Type %v", req.ReqType.String()))
+	}
+
+	if len(req.Text) == 0 && len(req.FileName) == 0 {
+		return req, serr.New(serr.ErrInvalidRequest, "validateRequest", string(provider.DeepL), fmt.Errorf("no text or filename"))
+	}
+
+	return req, nil
 }
 
 // will approx get the cost without an api call
@@ -279,36 +304,35 @@ func (c *DeepLClient) translateText(ctx context.Context, text []string, from lan
 	}
 
 	return provider.Response{
-		ResType: provider.Sync,
-		Text:    textlist,
+		Text: textlist,
 	}, nil
 
 }
 
-func (c *DeepLClient) translateDoc(ctx context.Context, binary []byte, filename string, from lang.Language, to lang.Language) (provider.Response, error) {
+func (c *DeepLClient) translateDoc(ctx context.Context, binary []byte, filename string, from lang.Language, to lang.Language) (provider.AsyncResponse, error) {
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
 	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
-		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error writing file: %w", err))
+		return provider.AsyncResponse{}, serr.New(serr.ErrInvalidRequest, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error writing file: %w", err))
 	}
 	_, err = io.Copy(part, bytes.NewBuffer(binary))
 	if err != nil {
-		return provider.Response{}, serr.New(serr.ErrIO, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error copying file: %w", err))
+		return provider.AsyncResponse{}, serr.New(serr.ErrIO, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error copying file: %w", err))
 	}
 
 	if from != lang.AutoDetect {
 		err = writer.WriteField("source_lang", from.String())
 		if err != nil {
-			return provider.Response{}, serr.New(serr.ErrIO, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error writing source_lang to request body: %w", err))
+			return provider.AsyncResponse{}, serr.New(serr.ErrIO, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error writing source_lang to request body: %w", err))
 		}
 	}
 
 	err = writer.WriteField("target_lang", to.String())
 	if err != nil {
-		return provider.Response{}, serr.New(serr.ErrHTTP, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error writing target_lang to request body: %w", err))
+		return provider.AsyncResponse{}, serr.New(serr.ErrHTTP, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error writing target_lang to request body: %w", err))
 	}
 
 	writer.Close()
@@ -316,38 +340,37 @@ func (c *DeepLClient) translateDoc(ctx context.Context, binary []byte, filename 
 	url := c.BaseURL.JoinPath("/document")
 	req, err := http.NewRequestWithContext(ctx, "POST", url.String(), body)
 	if err != nil {
-		return provider.Response{}, serr.New(serr.ErrHTTP, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error creating request: %w", err))
+		return provider.AsyncResponse{}, serr.New(serr.ErrHTTP, "TranslateDocument", string(provider.DeepL), fmt.Errorf("Error creating request: %w", err))
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("DeepL-Auth-Key %s", c.APIKey))
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	res, err := c.Client.Do(req)
 	if err != nil {
-		return provider.Response{}, serr.New(serr.ErrNetwork, "TranslateDocument", string(provider.DeepL), err)
+		return provider.AsyncResponse{}, serr.New(serr.ErrNetwork, "TranslateDocument", string(provider.DeepL), err)
 	}
 	defer res.Body.Close()
 
 	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices
 	if !ok {
-		return provider.Response{}, serr.New(serr.ErrHTTP, "TranslateDocument", string(provider.DeepL), fmt.Errorf("response code %v , Trace ID: %v", res.StatusCode, res.Header.Get("X-Trace-ID")))
+		return provider.AsyncResponse{}, serr.New(serr.ErrHTTP, "TranslateDocument", string(provider.DeepL), fmt.Errorf("response code %v , Trace ID: %v", res.StatusCode, res.Header.Get("X-Trace-ID")))
 	}
 
 	document := new(Documents)
 
 	err = json.NewDecoder(res.Body).Decode(document)
 	if err != nil {
-		return provider.Response{}, serr.New(serr.ErrInvalidResponse, "TranslateText", string(provider.DeepL), fmt.Errorf("Error json decoding: %w", err))
+		return provider.AsyncResponse{}, serr.New(serr.ErrInvalidResponse, "TranslateText", string(provider.DeepL), fmt.Errorf("Error json decoding: %w", err))
 	}
 
-	return provider.Response{
-		ResType:     provider.ASync,
+	return provider.AsyncResponse{
 		DocumentID:  document.DocID,
 		DocumentKey: document.DocKey,
 	}, nil
 
 }
 
-func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.Response) (Status, error) {
+func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.AsyncResponse) (Status, error) {
 	if obj.DocumentID == "" {
 		return Status{}, serr.New(serr.ErrInvalidRequest, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Document ID not set"))
 	}
@@ -394,7 +417,7 @@ func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.Response) (S
 } // expected for obj to contain docid and dockey
 
 // TODO: manage 404 and 503 responses better
-func (c *DeepLClient) GetResult(ctx context.Context, obj provider.Response) ([]byte, error) {
+func (c *DeepLClient) GetResult(ctx context.Context, obj provider.AsyncResponse) ([]byte, error) {
 	if obj.DocumentID == "" {
 		return nil, serr.New(serr.ErrInvalidRequest, "GetResult", string(provider.DeepL), fmt.Errorf("Document ID not set"))
 	}
