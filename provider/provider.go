@@ -11,6 +11,7 @@ import (
 
 type ResponseType int
 
+// with async response this should be safely removed
 const (
 	Sync ResponseType = iota
 	ASync
@@ -31,6 +32,13 @@ type AsyncResponse struct {
 	//DeepL Document translation Fields
 	DocumentID  string
 	DocumentKey string
+}
+
+type JobStatus struct {
+	Done             bool
+	Failed           bool
+	SecondsRemaining int
+	Message          string
 }
 
 type Request struct {
@@ -66,7 +74,7 @@ type Client interface {
 
 type AsyncClient interface {
 	AsyncTranslate(context.Context, Request) (AsyncResponse, error)
-	CheckStatus(context.Context, AsyncResponse) (any, error)
+	CheckStatus(context.Context, AsyncResponse) (JobStatus, error)
 	GetResult(context.Context, AsyncResponse) (Response, error)
 }
 
