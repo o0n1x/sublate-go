@@ -370,12 +370,12 @@ func (c *DeepLClient) translateDoc(ctx context.Context, binary []byte, filename 
 
 }
 
-func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.AsyncResponse) (Status, error) {
+func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.AsyncResponse) (provider.JobStatus, error) {
 	if obj.DocumentID == "" {
-		return Status{}, serr.New(serr.ErrInvalidRequest, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Document ID not set"))
+		return provider.JobStatus{}, serr.New(serr.ErrInvalidRequest, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Document ID not set"))
 	}
 	if obj.DocumentKey == "" {
-		return Status{}, serr.New(serr.ErrInvalidRequest, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Document Key not set"))
+		return provider.JobStatus{}, serr.New(serr.ErrInvalidRequest, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Document Key not set"))
 	}
 
 	data := url.Values{}
@@ -385,44 +385,63 @@ func (c *DeepLClient) CheckStatus(ctx context.Context, obj provider.AsyncRespons
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url.String(), strings.NewReader(data.Encode()))
 	if err != nil {
-		return Status{}, serr.New(serr.ErrInvalidRequest, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Error creating http request: %w", err))
+		return provider.JobStatus{}, serr.New(serr.ErrInvalidRequest, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Error creating http request: %w", err))
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("DeepL-Auth-Key %s", c.APIKey))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	res, err := c.Client.Do(req)
 	if err != nil {
-		return Status{}, serr.New(serr.ErrNetwork, "CheckDocumentStatus", string(provider.DeepL), err)
+		return provider.JobStatus{}, serr.New(serr.ErrNetwork, "CheckDocumentStatus", string(provider.DeepL), err)
 	}
 	defer res.Body.Close()
 
 	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices
 	if !ok {
-		return Status{}, serr.New(serr.ErrHTTP, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("response code %v , Trace ID: %v", res.StatusCode, res.Header.Get("X-Trace-ID")))
+		return provider.JobStatus{}, serr.New(serr.ErrHTTP, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("response code %v , Trace ID: %v", res.StatusCode, res.Header.Get("X-Trace-ID")))
 	}
 
 	status := new(Status)
-
+	jobstatus := new(provider.JobStatus)
 	err = json.NewDecoder(res.Body).Decode(status)
 	if err != nil {
-		return Status{}, serr.New(serr.ErrInvalidResponse, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Error json decoding: %w", err))
+		return provider.JobStatus{}, serr.New(serr.ErrInvalidResponse, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("Error json decoding: %w", err))
+	}
+
+	jobstatus = &provider.JobStatus{
+		Done:             false,
+		Failed:           false,
+		SecondsRemaining: 0,
+		Message:          "",
 	}
 
 	if status.Status == "error" {
-		return *status, serr.New(serr.ErrProviderAPI, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("%s", status.ErrMessage))
+		jobstatus.Failed = true
+		jobstatus.Message = status.ErrMessage
+	} else if status.Status == "translating" {
+		jobstatus.SecondsRemaining = status.SecondsRemaining
+	} else if status.Status == "done" {
+		jobstatus.Done = true
+	} else if status.Status == "queued" {
+		jobstatus.Message = "Queued"
 	}
 
-	return *status, nil
+	if jobstatus.Failed {
+
+		return *jobstatus, serr.New(serr.ErrProviderAPI, "CheckDocumentStatus", string(provider.DeepL), fmt.Errorf("%s", status.ErrMessage))
+	}
+
+	return *jobstatus, nil
 
 } // expected for obj to contain docid and dockey
 
 // TODO: manage 404 and 503 responses better
-func (c *DeepLClient) GetResult(ctx context.Context, obj provider.AsyncResponse) ([]byte, error) {
+func (c *DeepLClient) GetResult(ctx context.Context, obj provider.AsyncResponse) (provider.Response, error) {
 	if obj.DocumentID == "" {
-		return nil, serr.New(serr.ErrInvalidRequest, "GetResult", string(provider.DeepL), fmt.Errorf("Document ID not set"))
+		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "GetResult", string(provider.DeepL), fmt.Errorf("Document ID not set"))
 	}
 	if obj.DocumentKey == "" {
-		return nil, serr.New(serr.ErrInvalidRequest, "GetResult", string(provider.DeepL), fmt.Errorf("Document Key not set"))
+		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "GetResult", string(provider.DeepL), fmt.Errorf("Document Key not set"))
 	}
 
 	data := url.Values{}
@@ -432,33 +451,33 @@ func (c *DeepLClient) GetResult(ctx context.Context, obj provider.AsyncResponse)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url.String(), strings.NewReader(data.Encode()))
 	if err != nil {
-		return nil, serr.New(serr.ErrInvalidRequest, "GetResult", string(provider.DeepL), fmt.Errorf("Error creating http request: %w", err))
+		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "GetResult", string(provider.DeepL), fmt.Errorf("Error creating http request: %w", err))
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("DeepL-Auth-Key %s", c.APIKey))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	res, err := c.Client.Do(req)
 	if err != nil {
-		return nil, serr.New(serr.ErrNetwork, "GetResult", string(provider.DeepL), err)
+		return provider.Response{}, serr.New(serr.ErrNetwork, "GetResult", string(provider.DeepL), err)
 	}
 	defer res.Body.Close()
 
 	ok := http.StatusOK <= res.StatusCode && res.StatusCode < http.StatusMultipleChoices
 	if !ok {
 		if res.StatusCode == 404 {
-			return nil, serr.New(serr.ErrProviderAPI, "GetResult", string(provider.DeepL), errors.New("Document Not Found"))
+			return provider.Response{}, serr.New(serr.ErrProviderAPI, "GetResult", string(provider.DeepL), errors.New("Document Not Found"))
 		}
 		if res.StatusCode == 503 {
-			return nil, serr.New(serr.ErrProviderAPI, "GetResult", string(provider.DeepL), errors.New("Document Already downloaded"))
+			return provider.Response{}, serr.New(serr.ErrProviderAPI, "GetResult", string(provider.DeepL), errors.New("Document Already downloaded"))
 		}
-		return nil, serr.New(serr.ErrHTTP, "GetResult", string(provider.DeepL), fmt.Errorf("response code %v , Trace ID: %v", res.StatusCode, res.Header.Get("X-Trace-ID")))
+		return provider.Response{}, serr.New(serr.ErrHTTP, "GetResult", string(provider.DeepL), fmt.Errorf("response code %v , Trace ID: %v", res.StatusCode, res.Header.Get("X-Trace-ID")))
 	}
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, serr.New(serr.ErrIO, "GetResult", string(provider.DeepL), fmt.Errorf("Error reading Document: %w", err))
+		return provider.Response{}, serr.New(serr.ErrIO, "GetResult", string(provider.DeepL), fmt.Errorf("Error reading Document: %w", err))
 	}
 
-	return body, nil
+	return provider.Response{Binary: body}, nil
 
 } // expected for obj to contain docid and dockey

@@ -6,70 +6,81 @@ import (
 	"time"
 
 	serr "github.com/o0n1x/sublate-go/errors"
+	sformat "github.com/o0n1x/sublate-go/format"
 	provider "github.com/o0n1x/sublate-go/provider"
-	deepl "github.com/o0n1x/sublate-go/provider/deepl"
 )
 
+//TODO: we need to find a way to
+
 // Translate is the main entry point for all translations.
-// Handles async providers (DeepL files) internally - always returns sync response.
+// Handles async and sync providers  internally - always returns sync response.
 // Use this, not client.Translate() directly.
 func Translate(ctx context.Context, req provider.Request, client provider.Client) (provider.Response, error) {
-	switch client.Name() {
-	case provider.DeepL:
-		return translateDeepl(ctx, req, client)
+	switch req.ReqType {
+	case sformat.File:
+		asyncC, ok := client.(provider.AsyncClient)
+		if !ok {
+			return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", "", fmt.Errorf("client does not support file translation"))
+		}
+		return translateAsyncComplete(ctx, req, asyncC)
+	case sformat.Text:
+		syncC, ok := client.(provider.SyncClient)
+		if !ok {
+			return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", "", fmt.Errorf("client does not support text translation"))
+		}
+		return translateSync(ctx, req, syncC)
 	default:
-		return provider.Response{}, serr.New(serr.ErrInvalidProvider, "Translate", "", fmt.Errorf("Invalid Client type"))
+		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", "", fmt.Errorf("invalid request type"))
+
 	}
 }
 
-func translateDeepl(ctx context.Context, req provider.Request, client provider.Client) (provider.Response, error) {
-	deeplC := client.(*deepl.DeepLClient)
-	res, err := deeplC.Translate(ctx, req)
+func translateSync(ctx context.Context, req provider.Request, client provider.SyncClient) (provider.Response, error) {
+	res, err := client.Translate(ctx, req)
 	if err != nil {
 		return provider.Response{}, err // all errors returned from deepl is wrapped as serr
 	}
-	switch res.ResType { //this approach is abit too coupled and not generalized ,though, its fine for now TODO: find a better approach
-	case provider.Sync:
-		//sync jst return
-		return res, nil
+	return res, nil
+}
 
-	case provider.ASync:
-		//async wait for completion
-		status, err := deeplC.CheckStatus(ctx, res)
-		if err != nil {
-			return provider.Response{}, err
-		}
-		for status.Status != "done" {
-			if status.Status == "error" {
-				continue // impossible to reach this code since deepl.CheckStatus returns an error if status is error
-			}
+func translateAsync(ctx context.Context, req provider.Request, client provider.AsyncClient) (provider.AsyncResponse, error) {
+	res, err := client.AsyncTranslate(ctx, req)
+	if err != nil {
+		return provider.AsyncResponse{}, err // all errors returned from deepl is wrapped as serr
+	}
+	return res, nil
+}
 
-			//keeps an eye for ctx cancellation, if it closes mid translation it returns
-			select {
-			case <-ctx.Done():
-				return provider.Response{}, serr.New(serr.ErrNetwork, "Translate", string(provider.DeepL), ctx.Err())
-			case <-time.After(time.Second):
-			}
-
-			status, err = deeplC.CheckStatus(ctx, res)
-			if err != nil {
-				return provider.Response{}, err
-			}
-		}
-		translation, err := deeplC.GetResult(ctx, res)
-		if err != nil {
-			return provider.Response{}, err
-		}
-
-		return provider.Response{
-			ResType: provider.Sync,
-			Binary:  translation,
-		}, nil
-
-	default: // not possible to reach
-		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", string(provider.DeepL), fmt.Errorf("Invalid Deepl Document request type: %v", res.ResType))
+func translateAsyncComplete(ctx context.Context, req provider.Request, client provider.AsyncClient) (provider.Response, error) {
+	res, err := client.AsyncTranslate(ctx, req)
+	if err != nil {
+		return provider.Response{}, err // all errors returned from deepl is wrapped as serr
+	}
+	status, err := client.CheckStatus(ctx, res)
+	if err != nil {
+		return provider.Response{}, err
 	}
 
+	for !status.Done {
+
+		//keeps an eye for ctx cancellation, if it closes mid translation it returns
+		select {
+		case <-ctx.Done():
+			return provider.Response{}, serr.New(serr.ErrNetwork, "Translate", string(client.Name()), ctx.Err())
+		case <-time.After(time.Second):
+		}
+
+		status, err = client.CheckStatus(ctx, res)
+		if err != nil {
+			return provider.Response{}, err
+		}
+	}
+	translation, err := client.GetResult(ctx, res)
+	if err != nil {
+		return provider.Response{}, err
+	}
+
+	return translation, nil
 }
 
 // wrapper function that parralelizes translation based on the provider

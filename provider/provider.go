@@ -19,8 +19,8 @@ import (
 
 type Response struct {
 	// ResType ResponseType
-	Text []string // if sync then translation is in text field
-	// Binary  []byte   // if file then translation in the binary field
+	Text   []string // if sync then translation is in text field
+	Binary []byte   // if file then translation in the binary field
 	// // if async then response will be in later fields
 
 	// //DeepL Document translation Fields
@@ -64,18 +64,24 @@ const (
 	DeepL Provider = "DeepL"
 )
 
+// TODO. refactor naming to be more idiomatic ex: GetCost -> Cost
 type Client interface {
-	Translate(context.Context, Request) (Response, error)
 	GetCost(Request) float32
 	GetCharCount(Request) int
 	Name() Provider
 	Version() string
 }
 
+type SyncClient interface {
+	Translate(context.Context, Request) (Response, error)
+	Client
+}
+
 type AsyncClient interface {
 	AsyncTranslate(context.Context, Request) (AsyncResponse, error)
 	CheckStatus(context.Context, AsyncResponse) (JobStatus, error)
 	GetResult(context.Context, AsyncResponse) (Response, error)
+	Client
 }
 
 func GetClient(name Provider, apiKey string) (Client, error) {

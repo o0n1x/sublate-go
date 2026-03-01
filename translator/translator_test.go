@@ -9,6 +9,7 @@ import (
 	format "github.com/o0n1x/sublate-go/format"
 	lang "github.com/o0n1x/sublate-go/lang"
 	provider "github.com/o0n1x/sublate-go/provider"
+	_ "github.com/o0n1x/sublate-go/provider/deepl"
 )
 
 func TestTranslatorIntegration(t *testing.T) {
@@ -58,6 +59,12 @@ func TestBatchTranslatorIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer InputFile.Close()
+
+	filebinary, err := os.ReadFile(input_file_name)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	client, err := provider.GetClient(provider.DeepL, apiKey)
 	if err != nil {
@@ -65,7 +72,7 @@ func TestBatchTranslatorIntegration(t *testing.T) {
 	}
 	var batcherr []error
 	resp, batcherr := BatchTranslate(context.Background(), []provider.Request{
-		provider.Request{
+		{
 			ReqType: format.Text,
 			Text: []string{
 				"Hello, how are you today?",
@@ -76,10 +83,11 @@ func TestBatchTranslatorIntegration(t *testing.T) {
 			},
 			From: lang.English,
 			To:   lang.Japanese,
-		}, provider.Request{
-			ReqType: format.File,
-			Text:    []string{InputFile.Name()},
-			To:      lang.Arabic,
+		}, {
+			ReqType:  format.File,
+			Binary:   filebinary,
+			FileName: InputFile.Name(),
+			To:       lang.Arabic,
 		},
 	}, client)
 	if batcherr[0] != nil {
