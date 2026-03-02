@@ -22,10 +22,11 @@ func TestDeeplIntegrationText(t *testing.T) {
 		t.Fatal("DEEPL_API_KEY not set")
 	}
 
-	client, err := provider.GetClient(provider.DeepL, apiKey)
+	deeplclient, err := provider.GetClient(provider.DeepL, apiKey)
 	if err != nil {
 		t.Fatal(err)
 	}
+	client := deeplclient.(provider.SyncClient)
 	resp, err := client.Translate(context.Background(), provider.Request{
 		ReqType: format.Text,
 		Text: []string{
@@ -79,7 +80,7 @@ func TestDeeplIntegrationFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := client.Translate(context.Background(), provider.Request{
+	resp, err := client.AsyncTranslate(context.Background(), provider.Request{
 		ReqType:  format.File,
 		Binary:   data,
 		FileName: filename,
@@ -98,14 +99,12 @@ func TestDeeplIntegrationFile(t *testing.T) {
 			t.Fatalf("Error checking status: %v", err)
 		}
 
-		t.Logf("Status of Request: %v", status.Status)
-
-		if status.Status == "done" {
+		if status.Done {
 			break
-		} else if status.Status == "error" {
-			t.Fatalf("Status Error: %v", status.ErrMessage)
+		} else if status.Failed {
+			t.Fatalf("Status Error: %v", status.Message)
 
-		} else if status.Status == "translating" {
+		} else {
 			t.Logf("Time remaining till completion: %v", status.SecondsRemaining)
 		}
 
@@ -116,7 +115,7 @@ func TestDeeplIntegrationFile(t *testing.T) {
 		t.Fatalf("Error Getting result: %v", err)
 	}
 
-	err = os.WriteFile(output_file_name, file, 0644)
+	err = os.WriteFile(output_file_name, file.Binary, 0644)
 	if err != nil {
 		t.Fatalf("Error writing result: %v", err)
 	}

@@ -5,9 +5,10 @@ A Go Package for translating Text and Documents using multiple translation provi
 ## Features
 
 - Multi-Provider Support: Extensible interface for translation providers
-    - Implementing a new Provider simply needs to implement the Client interface
-- Type-Safe: Strongly Typed languages and formats
-- Document Support: Support Translating PDF,SRT,TXT Documents. (Extendable)
+    - Implementing a new Provider simply needs to implement the SyncClient/AsyncClient interfaces
+	- Translation Package works with any Client that implements the interfaces
+- Type-Safe: Strongly Typed languages, formats, and errors
+- Document Support: Support Translating PDF,SRT,TXT Documents (Extendable)
 
 
 ## Installation
@@ -28,7 +29,9 @@ import (
 	"github.com/o0n1x/sublate-go/format"
 	"github.com/o0n1x/sublate-go/lang"
 	"github.com/o0n1x/sublate-go/provider"
+	_ "github.com/o0n1x/sublate-go/provider/deepl" // important! 
 	sublate "github.com/o0n1x/sublate-go/translator"
+	
 )
 
 func main() {
@@ -58,17 +61,23 @@ func main() {
 }
 
 ```
+> [!IMPORTANT]
+> Provider packages use blank imports (`_`) to self-register via `init()`. This is the same pattern used by Go's `database/sql` package. Without this import, `provider.GetClient()` won't know about the provider.
+
 
 ## Architecture
 
+
 | Component | Description |
 |-----------|-------------|
-| 🔴 Main Package | Entry point Package  |
-| 🟡 Core Types | Core Packages / Implementation |
-| 🔵 Language/Format | Supporting Packages / Types definitions|
+| 🔴 Translator Package | Entry point  |
+| 🟡 Core Types | Interfaces, structs, and provider registry |
+| 🔵 Provider Implementation | Concrete provider packages (e.g. DeepL) |
+| ⚫ Supporting Types | Enumerations, error types, and shared definitions (Language, Format, ErrorCode) |
 
 
-![Package Diagram](/diagrams/class%20diagram_package.svg)
+
+![Class Diagram](/diagrams/class%20diagram_package.svg)
 
 ## API Reference 
 
@@ -83,7 +92,7 @@ func Translate(ctx context.Context, req Request, client Client) (Response, error
 
 __Translate multiple requests__
 ```go
-func BatchTranslate(ctx context.Context, reqs []Request, client Client) ([]Response, error)
+func BatchTranslate(ctx context.Context, reqs []Request, client Client) ([]Response, []error)
 ```
 __Get a translation client by provider__
 ```go
@@ -92,24 +101,46 @@ func GetClient(provider Provider, APIKey string) (Client, error)
 
 ### Client Interface
 
-Implement this to add a new provider:
-
+All Clients implements the generalized client interface:
 ```go
 type Client interface {
-	Translate(context.Context, Request) (Response, error) // Translates the Request and returns the response
 	GetCost(Request) float32 //calculates cost from request
 	GetCharCount(Request) int // counts the total char count from request
-	Name() Provider //returns the name of the provider. usually returns proivder const from provider package
+	Name() Provider //returns the name of the provider. usually returns provider const from provider package
 	Version() string //returns version of the provider API that is used
 }
 ```
+> [!NOTE]
+> Clients only implementing the generalized Client wont be able to translate anything. it should either implement SyncClient or AsyncClient.
 
+
+Synchronous clients should implement the SyncClient interface:
+
+```go
+type SyncClient interface {
+	Translate(context.Context, Request) (Response, error) // Translates the Request and returns a response
+	Client
+}
+```
+
+Asynchronous clients should implement the AsyncClient interface:
+```go
+type AsyncClient interface {
+	AsyncTranslate(context.Context, Request) (AsyncResponse, error) //  Sends a request to the Provider and returns an async response
+	CheckStatus(context.Context, AsyncResponse) (JobStatus, error) // Check Status of a Document wit the provider
+	GetResult(context.Context, AsyncResponse) (Response, error) // Gets result document from provider
+	Client
+}
+```
+
+> [!NOTE]
+> Providers can implement both Sync and AsyncClient interfaces.
 
 ### Supported Providers
 
-|Provider | Status | Documents |
-|-----------|-------------|-------------|
-|Deepl | ✅ | txt, pdf, srt|
+|Provider | Sync | Async | Supports |
+|-----------|-------------|-------------|-------------|
+|Deepl | ✅ | ✅ | txt, pdf, srt, string|
 
 
 ### Types
