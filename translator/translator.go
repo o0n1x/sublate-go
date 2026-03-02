@@ -10,8 +10,6 @@ import (
 	provider "github.com/o0n1x/sublate-go/provider"
 )
 
-//TODO: we need to find a way to
-
 // Translate is the main entry point for all translations.
 // Handles async and sync providers  internally - always returns sync response.
 // Use this, not client.Translate() directly.
