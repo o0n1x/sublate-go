@@ -21,11 +21,7 @@ type Response struct {
 	// ResType ResponseType
 	Text   []string // if sync then translation is in text field
 	Binary []byte   // if file then translation in the binary field
-	// // if async then response will be in later fields
 
-	// //DeepL Document translation Fields
-	// DocumentID  string
-	// DocumentKey string
 }
 
 type AsyncResponse struct {
