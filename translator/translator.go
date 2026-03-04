@@ -22,13 +22,13 @@ func Translate(ctx context.Context, req provider.Request, client provider.Client
 		if !ok {
 			return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", "", fmt.Errorf("client does not support file translation"))
 		}
-		return TranslateAsyncComplete(ctx, req, asyncC)
+		return translateAsyncComplete(ctx, req, asyncC)
 	case sformat.Text:
 		syncC, ok := client.(provider.SyncClient)
 		if !ok {
 			return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", "", fmt.Errorf("client does not support text translation"))
 		}
-		return TranslateSync(ctx, req, syncC)
+		return translateSync(ctx, req, syncC)
 	default:
 		return provider.Response{}, serr.New(serr.ErrInvalidRequest, "Translate", "", fmt.Errorf("invalid request type"))
 
@@ -56,7 +56,7 @@ func BatchTranslate(ctx context.Context, req []provider.Request, client provider
 
 //Functions with finer control
 
-func TranslateSync(ctx context.Context, req provider.Request, client provider.SyncClient) (provider.Response, error) {
+func translateSync(ctx context.Context, req provider.Request, client provider.SyncClient) (provider.Response, error) {
 	res, err := client.Translate(ctx, req)
 	if err != nil {
 		return provider.Response{}, err // all errors returned from deepl is wrapped as serr
@@ -64,15 +64,7 @@ func TranslateSync(ctx context.Context, req provider.Request, client provider.Sy
 	return res, nil
 }
 
-func TranslateAsync(ctx context.Context, req provider.Request, client provider.AsyncClient) (provider.AsyncResponse, error) {
-	res, err := client.AsyncTranslate(ctx, req)
-	if err != nil {
-		return provider.AsyncResponse{}, err // all errors returned from deepl is wrapped as serr
-	}
-	return res, nil
-}
-
-func TranslateAsyncComplete(ctx context.Context, req provider.Request, client provider.AsyncClient) (provider.Response, error) {
+func translateAsyncComplete(ctx context.Context, req provider.Request, client provider.AsyncClient) (provider.Response, error) {
 	res, err := client.AsyncTranslate(ctx, req)
 	if err != nil {
 		return provider.Response{}, err // all errors returned from deepl is wrapped as serr
